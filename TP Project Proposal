@@ -1,0 +1,33 @@
+TP Project Proposal
+David Kim, davidk2
+
+Project Description: 
+    Name: PyRhythm Platformer
+    Description: Using beat and pitch detection, along with loading .osu files
+                 from the popular rhythm game "Osu!", I plan on creating a rhythm
+                 platformer akin to the mobile game "The Impossible Game."
+
+Competitive Analysis:
+    
+
+Structural Plan:
+    I plan on having a core file that runs the PyGame run function itself, while
+    having other files that correspond to the beat detection itself, the loading
+    of a particular media file, and a function(s) that parse through the .osu
+    file data and translates that to something PyGame can work with.
+
+
+Algorithmic Plan:
+    
+
+
+Timeline Plan:
+
+
+Version Control Plan:
+
+
+Module List:
+    PyGame
+    PyAudio
+    Aubio
