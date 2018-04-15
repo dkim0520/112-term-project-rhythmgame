@@ -3,6 +3,7 @@
 ####
 import sys
 import pygame
+from character import Character
 ###
 # initialization
 ###
@@ -12,7 +13,9 @@ import pygame
 class PygameGame(object):
 
     def init(self):
-        pass
+        Character.init()
+        character = Character(self.width/2, self.height/2)
+        self.characterGroup = pygame.sprite.GroupSingle(character)
 
     def mousePressed(self, x, y):
         pass
@@ -33,10 +36,10 @@ class PygameGame(object):
         pass
 
     def timerFired(self, dt):
-        pass
+        self.characterGroup.update(self.isKeyPressed, self.width, self.height)
 
     def redrawAll(self, screen):
-        pass
+        self.characterGroup.draw(screen)
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''
