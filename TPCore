@@ -13,6 +13,7 @@ import pygame
 class PygameGame(object):
 
     def init(self):
+        self.state = "Start Menu"
         Character.init()
         character = Character(self.width/2, self.height/2)
         self.characterGroup = pygame.sprite.GroupSingle(character)
@@ -30,7 +31,11 @@ class PygameGame(object):
         pass
 
     def keyPressed(self, keyCode, modifier):
-        pass
+        if keyCode == pygame.K_p and self.state == "Start Menu":
+            self.state = "Game State"
+            Character.init()
+            character = Character(self.width/2, self.height/2)
+            self.characterGroup = pygame.sprite.GroupSingle(character)
 
     def keyReleased(self, keyCode, modifier):
         pass
@@ -39,7 +44,10 @@ class PygameGame(object):
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
 
     def redrawAll(self, screen):
-        self.characterGroup.draw(screen)
+        if self.state == "Start Menu":
+            screen.fill((0, 255, 0))
+        if self.state == "Game State":
+            self.characterGroup.draw(screen)
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''
