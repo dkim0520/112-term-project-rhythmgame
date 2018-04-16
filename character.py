@@ -8,7 +8,7 @@ class Character(GameObject):
     def init():
         Character.characterImage = pygame.transform.rotate(pygame.transform.scale(
                 pygame.image.load('images/character.png').convert_alpha(),
-                (50,50)), -90)
+                (25,25)), -90)
 
     def __init__(self, x, y):
         super(Character, self).__init__(x, y, Character.characterImage, 30)
