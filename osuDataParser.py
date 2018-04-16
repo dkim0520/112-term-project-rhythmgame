@@ -8,6 +8,7 @@
 import io
 import os
 import string
+
 def getHitObject(osuFile):
     hitObjectsFound = False
     with io.open("Songs" + os.sep + osuFile, "r", encoding = "utf-8") as f:
@@ -38,3 +39,4 @@ def parseHitObjectData(hitFile):
             resultTuples.append(tuple(result))
             result = []
         return resultTuples
+

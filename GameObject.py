@@ -11,7 +11,8 @@ class GameObject(pygame.sprite.Sprite):
         self.baseImage = image.copy()
         w, h = image.get_size()
         self.updateRect()
-        self.scroll = (0, 0)
+        self.scroll = (-10, 0)
+        self.velocity = 0
         self.angle = 0
 
     def updateRect(self):
@@ -21,8 +22,7 @@ class GameObject(pygame.sprite.Sprite):
 
     def update(self, screenWidth, screenHeight):
         self.image = pygame.transform.rotate(self.baseImage, self.angle)
-        dx, dy = self.scroll
+        dx , dy = self.scroll
         self.x += dx
-        self.y += dy
-        self.scroll = (0, 0)
         self.updateRect()
+
