@@ -3,7 +3,7 @@ import pyaudio
 import numpy
 import wave
 
-class SimpleBeatDetection:
+class SimpleBeatDetection(object):
     """
     Simple beat detection algorithm from
     http://archive.gamedev.net/archive/reference/programming/features/beatdetection/index.html
@@ -42,18 +42,15 @@ stream = p.open(format = p.get_format_from_width(wf.getsampwidth()),
                 rate = wf.getframerate(),
                 output = True)
 
-data = stream.read(CHUNK)
-
+data = wf.readframes(CHUNK)
+beat = SimpleBeatDetection()
 while len(data) > 0:
-    stream.write(data)
-    signal = numpy.frombuffer(data, numpy.int16)
-    data = stream.read(CHUNK)
-    print(SimpleBeatDetection.detect_beat(signal))
+    # stream.write(data)
+    data1 = wf.readframes(CHUNK)
+    signal = numpy.frombuffer(data1, numpy.int16)
+    print(beat.detect_beat(signal))
 
 stream.stop_stream()
 stream.close()
 
 p.terminate()
-
-# data = stream.read(CHUNK)
-# signal = numpy.frombuffer(data, numpy.int16)

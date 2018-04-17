@@ -1,8 +1,6 @@
 ###GameObject Class###
 #Framework inspired by Lukas Peraza#
-
 import pygame
-
 
 class GameObject(pygame.sprite.Sprite):
     def __init__(self, x, y, image, radius):
