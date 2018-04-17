@@ -5,11 +5,18 @@ Project Description:
     Name: PyRhythm Platformer
     Description: Using beat and pitch detection, along with loading .osu files
                  from the popular rhythm game "Osu!", I plan on creating a rhythm
-                 platformer akin to the mobile game "The Impossible Game."
+                 platformer akin to the mobile game "The Impossible Game" that 
 
 Competitive Analysis:
-    
+    One game that is similar to the one I am making is the mobile game "The Impossible Game."
+    While mechanically the game runs similar to how I envision my rhythm game to run, it does
+    not have the ability to generate any level given a loaded song. However, the basic principle
+    of jumping onto platforms and over obstacles to a beat will be fairly similar to how I plan on
+    creating this project. An additional game that is similar to the one I am making is the popular
+    game titled "Geometry Dash." While the basic mechanics of both "Geometry Dash" and "The Impossible Game" are very similar to my "PyRhythm Platformer," "Geometry Dash" still does
+    not have the ability to generate levels given an audio file. However, "Geometry Dash" has the added feature of a level editor, which allows users to create their own levels to a song of their choosing. In addition, "Geometry Dash" has additional complexity in certain tile triggers that add a layer of difficulty, such as switching the gravity of a level or allowing the main character fly up and down when the screen is tapped/clicked. 
 
+    
 Structural Plan:
     I plan on having a core file that runs the PyGame run function itself, while
     having other files that correspond to the beat detection itself, the loading
@@ -18,14 +25,25 @@ Structural Plan:
 
 
 Algorithmic Plan:
-
+    The trickiest part of my TP will likely be creating my own beat detection alogorithm.
+    By using PyAudio and taking in raw sound data, I plan on implementing a program that
+    first determines the beats per minute of an audio file, and in combination with a pitch
+    detection program, I plan on determining where in time certain notes are played, and thus
+    being able to detect the beats of an audio file. 
 
 
 Timeline Plan:
+    By TP1/halfway to TP2, I plan on having platform collissions done, in addition to getting
+    work done on generating those platforms by taking in osu! data. I hope to get a semi-decent
+    UI implemented by then as well. I hope to get beat detection working by TP2, and then being
+    able to utilize the frequency detection along with the beat detection in order to generate 
+    platforms. After TP2, hopefully a more cohesive UI will be implemented, in addition to some
+    additional options/quality-of-life features.
 
 
 Version Control Plan:
     I plan on using GitHub as my version control method.
+    Image Link: https://i.imgur.com/wZX5wq8.png
 
 Module List:
     PyGame
