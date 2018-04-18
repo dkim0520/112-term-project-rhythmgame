@@ -15,31 +15,43 @@ class Character(GameObject):
         self.isAlive = True
         self.angle = 0
         self.isJump = False
+        self.onPlatform = True
         self.velocity = 0
         self.dy = 1
         self.gF = 0
+        self.scroll = (0, 0)
 
     def update(self, keysDown, screenWidth, screenHeight):
+        if self.onPlatform:
+            self.isJump = False
+            self.scroll = (-4 ,0)
+            self.y = screenHeight//2
+
+        if not self.onPlatform:
+            self.y += self.height/3
+
         if self.isJump:
             self.gF = 0.5 * self.velocity**2
             self.velocity -= self.dy
-            self.y -= self.height/3
+            self.y -= 20
             if self.y < screenHeight/2 - 10: 
                 self.y += self.gF
                 self.angle -= 4.1
-            elif self.y > screenHeight//2:
-                self.velocity = 0
-                self.y = screenHeight//2
-                self.isJump = False
-                self.angle = 90
-            self.updateRect()
+
+        if not self.isJump:
+            # self.y = screenHeight/2
+            self.velocity = 0
+            self.angle = 90
+
+        self.updateRect()
 
         if keysDown(pygame.K_UP) and self.isJump == False:
             self.isJump = True
+            self.onPlatform = False
             self.velocity = 5
 
         if keysDown(pygame.K_LEFT):
-            self.x -= 20
+            self.x -= 15
 
         if keysDown(pygame.K_RIGHT):
             self.x += 20

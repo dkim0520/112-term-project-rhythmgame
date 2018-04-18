@@ -4,6 +4,8 @@
 import sys
 import pygame
 from character import Character
+from Platform import Platform
+import osuDataParser
 ###
 # initialization
 ###
@@ -13,10 +15,17 @@ import pygame
 class PygameGame(object):
 
     def init(self):
-        self.state = "Start Menu"
+        self.state = "Start Menu" #different games states for different modes
+
         Character.init()
         character = Character(self.width/2, self.height/2)
         self.characterGroup = pygame.sprite.GroupSingle(character)
+
+        Platform.init()
+        platform = Platform(self.width, self.height)
+        self.platformGroup = pygame.sprite.Group(platform)
+
+        self.startFont = pygame.font.SysFont('Helvetica', self.width//8)
 
     def mousePressed(self, x, y):
         pass
@@ -36,28 +45,69 @@ class PygameGame(object):
             Character.init()
             character = Character(self.width/2, self.height/2)
             self.characterGroup = pygame.sprite.GroupSingle(character)
+            Platform.init()
+            platform = Platform(self.width/2, self.height/2 + 25)
+            self.platformGroup = pygame.sprite.Group(platform)
+
 
     def keyReleased(self, keyCode, modifier):
         pass
 
     def timerFired(self, dt):
+        if self.state == "Lost": return
+        self.timesFired += 1
+        self.platformGroup.update(self.isKeyPressed, self.width, self.height)
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
+        if self.timesFired % 50 == 0: #adds platforms every so often
+            self.platformGroup.add(Platform(self.width, self.height/2 + 25))
+        if self.timesFired % 50 == 25:
+            self.platformGroup.add(Platform(self.width, self.height/2 - 25))
+
+        for character in pygame.sprite.groupcollide(
+            self.characterGroup, self.platformGroup, False, False):
+            # checks collisions with platforms and modifies character accordingly
+            character.isJump = False
+            character.onPlatform = True
+            for platform in pygame.sprite.groupcollide(self.platformGroup, self.characterGroup, False, False):
+                if character.y < platform.y:
+                    character.y = platform.y
+                character.y = platform.y - 30
+                character.velocity = 0 
+                character.angle = 90
+
+        for platforms in self.platformGroup:
+            if platforms.x < 0:
+                self.platformGroup.remove(platforms)
+
+        for character in self.characterGroup:
+            if not character.isJump and self.state == "Game State":
+                character.onPlatform = False
+            if character.y > self.height:
+                self.state = "Lost"
 
     def redrawAll(self, screen):
         if self.state == "Start Menu":
             screen.fill((0, 255, 0))
+            screen.blit(self.startFont.render('PyRhythm Platformer', True, 
+                                              (255,0,0)), (0, 0))
         if self.state == "Game State":
             self.characterGroup.draw(screen)
+            self.platformGroup.draw(screen)
+        if self.state == "Lost":
+            screen.fill((255, 0, 0))
+            screen.blit(self.startFont.render("Failed!", True, (0, 0, 0)), 
+                        (self.width/2 - 100, self.height/2 - 100))
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''
         return self._keys.get(key, False)
 
-    def __init__(self, width=600, height=400, fps=50, title="112 Pygame Game"):
+    def __init__(self, width=600, height=400, fps=50, title="PyRhythm Platformer"):
         self.width = width
         self.height = height
         self.fps = fps
         self.title = title
+        self.timesFired = 0
         pygame.init()
 
     def run(self):
