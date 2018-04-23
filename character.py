@@ -27,19 +27,15 @@ class Character(GameObject):
             self.scroll = (-4 ,0)
             self.y = screenHeight//2
 
-        if not self.onPlatform:
-            self.y += self.height/3
-
         if self.isJump:
             self.gF = 0.5 * self.velocity**2
             self.velocity -= self.dy
-            self.y -= 20
+            self.y -= 10
             if self.y < screenHeight/2 - 10: 
                 self.y += self.gF
                 self.angle -= 4.1
 
         if not self.isJump:
-            # self.y = screenHeight/2
             self.velocity = 0
             self.angle = 90
 
@@ -48,14 +44,16 @@ class Character(GameObject):
         if keysDown(pygame.K_UP) and self.isJump == False:
             self.isJump = True
             self.onPlatform = False
-            self.velocity = 5
+            self.velocity = 3
 
         if keysDown(pygame.K_LEFT):
             self.x -= 15
 
         if keysDown(pygame.K_RIGHT):
-            self.x += 20
+            self.x += 15
 
+        if not self.onPlatform and not self.isJump:
+            self.y += 10
         super(Character, self).update(screenWidth, screenHeight)
 
 

@@ -71,9 +71,10 @@ class PygameGame(object):
             for platform in pygame.sprite.groupcollide(self.platformGroup, self.characterGroup, False, False):
                 if character.y < platform.y:
                     character.y = platform.y
-                character.y = platform.y - 30
-                character.velocity = 0 
-                character.angle = 90
+                if character.onPlatform:    
+                    character.y = platform.y - 35
+                    character.velocity = 0 
+                    character.angle = 90
 
         for platforms in self.platformGroup:
             if platforms.x < 0:
