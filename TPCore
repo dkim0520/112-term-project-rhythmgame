@@ -5,7 +5,7 @@ import sys
 import pygame
 from character import Character
 from Platform import Platform
-import osuDataParser
+from osuDataParser import *
 ###
 # initialization
 ###
@@ -17,51 +17,150 @@ class PygameGame(object):
     def init(self):
         self.state = "Start Menu" #different games states for different modes
 
+        self.recentfilePath = ""
+
+        self.startPlatLength = 5000
+        #highlights
+        self.highlight = 5
+        self.playHighlight = False
+        self.editHighlight = False
+        self.loadFileHighlight = False
+        self.tutorialHighlight = False
+        self.backLoadHighlight = False
+        self.retryHighlight = False
+
         Character.init()
         character = Character(self.width/2, self.height/2)
         self.characterGroup = pygame.sprite.GroupSingle(character)
 
         Platform.init()
-        platform = Platform(self.width, self.height)
+        platform = Platform(self.width, self.height, 25)
         self.platformGroup = pygame.sprite.Group(platform)
 
+        #fonts
         self.startFont = pygame.font.SysFont('Helvetica', self.width//8)
+        self.playFont = pygame.font.SysFont("Helvetica", self.width//16)
+        self.retryFont = pygame.font.SysFont("Helvetica", self.width//18)
+        self.backFont = pygame.font.SysFont("Helvetica", 50)
 
     def mousePressed(self, x, y):
-        pass
+        #load file menu
+        if self.state == "Start Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 50 <= y <= self.height/2 + 30:
+            self.state = "Load File State"
+            
+        #back button mouse press
+        elif self.state == "Load File State" and 0 <= x <= 50 and 0 <= y <= 50:
+            self.state = "Start Menu"
+
+        #start default level
+        elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 140 <= y <= self.height/2 - 60:
+            print(self.state)
+            self.state = "Game State"
+            self.recentfilePath = "Game"
+            Character.init()
+            character = Character(self.width/2, self.height/2 - 25)
+            self.characterGroup = pygame.sprite.GroupSingle(character)
+            Platform.init()
+            platform = Platform(0, self.height/2 + 25, self.startPlatLength)
+            self.platformGroup = pygame.sprite.Group(platform)
+
+        elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
+            if self.recentfilePath == "":
+                Character.init()
+                character = Character(self.width/2, self.height/2 - 25)
+                self.characterGroup = pygame.sprite.GroupSingle(character)
+                Platform.init()
+                platform = Platform(0, self.height/2 + 25, self.startPlatLength)
+                self.platformGroup = pygame.sprite.Group(platform)
+            else:
+                Character.init()
+                character = Character(self.width/2, self.height/2 - 25)
+                self.characterGroup = pygame.sprite.GroupSingle(character)
+                Platform.init()
+                platform = Platform(0, self.height/2 + 25, self.startPlatLength)
+                self.platformGroup = pygame.sprite.Group(platform)
+                for hitButton in parseHitObjectData(getHitObject(self.recentfilePath)):
+                    if hitButton[0] > self.height:
+                        self.platformGroup.add(Platform(self.height, hitButton[0], 50))
+                    else:
+                        self.platformGroup.add(Platform(hitButton[1], hitButton[0],50))
+
+        #load file
+        elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
+            #checks if valid file type and file exists
+            tempCheck = input("Paste the name of the file here: ")
+            #if found, loads location of each platform
+            while tempCheck not in os.listdir("Songs") or tempCheck[-4:] != ".osu":
+                tempCheck = input("Paste the name of a valid file here: ")
+            self.recentfilePath = tempCheck
+            #note, make more efficient
+            for hitButton in parseHitObjectData(getHitObject(self.recentfilePath)):
+                if hitButton[0] > self.height:
+                    self.platformGroup.add(Platform(self.height, hitButton[0], 50))
+                else:
+                    self.platformGroup.add(Platform(hitButton[1], hitButton[0],50))
+            self.state = "%s State" %(self.recentfilePath)
 
     def mouseReleased(self, x, y):
         pass
 
     def mouseMotion(self, x, y):
-        pass
+        #highlight for play game
+        if self.state == "Start Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 50 <= y <= self.height/2 + 30:
+            self.playHighlight = True
+        else:
+            self.playHighlight = False
+
+        #highlight for edit button
+        if self.state == "Start Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 75 <= y <= self.height/2 + 155:
+            self.editHighlight = True
+        else:
+            self.editHighlight = False
+
+        #highlight for play default button
+        if self.state == "Load File State" and self.width/2 -100 <= x <= self.width/2 + 100 and self.height/2 - 140<= y <= self.height/2 - 60:
+            self.tutorialHighlight = True
+        else:
+            self.tutorialHighlight = False
+
+        #highlight for load file back button
+        if self.state == "Load File State" and 0 <= x <= 50 and 0 <= y <= 50:
+            self.backLoadHighlight = True
+        else:
+            self.backLoadHighlight = False
+
+        #highlight for load file button
+        if self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
+            self.loadFileHighlight = True
+        else:
+            self.loadFileHighlight = False
+
+        if self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
+            self.retryHighlight = True
+        else:
+            self.retryHighlight = False
 
     def mouseDrag(self, x, y):
         pass
 
     def keyPressed(self, keyCode, modifier):
-        if keyCode == pygame.K_p and self.state == "Start Menu":
-            self.state = "Game State"
-            Character.init()
-            character = Character(self.width/2, self.height/2)
-            self.characterGroup = pygame.sprite.GroupSingle(character)
-            Platform.init()
-            platform = Platform(self.width/2, self.height/2 + 25)
-            self.platformGroup = pygame.sprite.Group(platform)
-
+        pass
+            
 
     def keyReleased(self, keyCode, modifier):
         pass
 
     def timerFired(self, dt):
-        if self.state == "Lost": return
+        if self.state != "%s State" %(self.recentfilePath): return
         self.timesFired += 1
         self.platformGroup.update(self.isKeyPressed, self.width, self.height)
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
-        if self.timesFired % 50 == 0: #adds platforms every so often
-            self.platformGroup.add(Platform(self.width, self.height/2 + 25))
-        if self.timesFired % 50 == 25:
-            self.platformGroup.add(Platform(self.width, self.height/2 - 25))
+
+        if self.state == "Game State":
+            if self.timesFired % 50 == 0: #adds platforms every so often
+                self.platformGroup.add(Platform(self.width, self.height/2 + 25, 50))
+            if self.timesFired % 50 == 25:
+                self.platformGroup.add(Platform(self.width, self.height/2 - 25, 25))
 
         for character in pygame.sprite.groupcollide(
             self.characterGroup, self.platformGroup, False, False):
@@ -69,35 +168,105 @@ class PygameGame(object):
             character.isJump = False
             character.onPlatform = True
             for platform in pygame.sprite.groupcollide(self.platformGroup, self.characterGroup, False, False):
-                if character.y < platform.y:
-                    character.y = platform.y
-                if character.onPlatform:    
-                    character.y = platform.y - 35
+                if character.x < platform.x:
+                    character.x = platform.x - 50
+                elif character.onPlatform:    
+                    character.y = platform.y - 25
                     character.velocity = 0 
                     character.angle = 90
+                elif character.y < platform.y:
+                    character.y = platform.y + 25
 
         for platforms in self.platformGroup:
-            if platforms.x < 0:
+            if platforms.x + platforms.length < 0:
                 self.platformGroup.remove(platforms)
 
         for character in self.characterGroup:
-            if not character.isJump and self.state == "Game State":
+            if not character.isJump and self.state == "%s State" %(self.recentfilePath):
                 character.onPlatform = False
+
             if character.y > self.height:
                 self.state = "Lost"
+
 
     def redrawAll(self, screen):
         if self.state == "Start Menu":
             screen.fill((0, 255, 0))
             screen.blit(self.startFont.render('PyRhythm Platformer', True, 
                                               (255,0,0)), (0, 0))
-        if self.state == "Game State":
+            
+            #play button
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100, 
+                             self.height/2 - 50, 200, 80))
+            screen.blit(self.playFont.render("Play Game", True,
+                                            (0, 0, 0)), (self.width/2 - 75, self.height/2 - 35))
+
+            #play button highlight
+            if self.playHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
+                             self.height/2 - 50, 200, 80), self.highlight)
+
+            #edit button
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 + 75, 200, 80))
+
+            #edit button highlight
+            if self.editHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
+                                 self.height/2 + 75, 200, 80), self.highlight)
+
+        if self.state == "Load File State":
+            screen.fill((0, 255, 0))
+            #back button
+            pygame.draw.rect(screen, (155, 0, 0), (0, 0, 50, 50))
+            screen.blit(self.backFont.render("<", True, (0, 0, 0)),
+                        (10, 0))
+
+            #back button highlight
+            if self.backLoadHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (0, 0, 50, 50), self.highlight)
+
+            #play default/tutorial level
+            pygame.draw.rect(screen,(100, 155, 155), (self.width/2 - 100,
+                             self.height/2 - 140, 200, 80))
+            screen.blit(self.playFont.render("Tutorial Level", True, (0, 0, 0)),
+                        (self.width/2 - 90, self.height/2 - 120))
+
+            #default/tutorial level highlight
+            if self.tutorialHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100, 
+                                 self.height/2 - 140, 200, 80), self.highlight)
+
+            #load file button
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 - 40, 200, 80))
+            screen.blit(self.playFont.render("Load File", True, (0, 0, 0)),
+                        (self.width/2 - 62, self.height/2 - 20))
+
+            #load file highlight
+            if self.loadFileHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
+                                 self.height/2 - 40, 200, 80), self.highlight)
+
+        elif self.state == "Game State" or self.state == "%s State" %(self.recentfilePath):
             self.characterGroup.draw(screen)
             self.platformGroup.draw(screen)
-        if self.state == "Lost":
+
+        elif self.state == "Lost":
             screen.fill((255, 0, 0))
             screen.blit(self.startFont.render("Failed!", True, (0, 0, 0)), 
-                        (self.width/2 - 100, self.height/2 - 100))
+                        (self.width/2 - 90, self.height/2 - 100))
+
+            #retry button
+            pygame.draw.rect(screen, (100, 155, 155), 
+                            (self.width/2 - 50, self.height/2 + 20, 100, 40))
+            screen.blit(self.retryFont.render("Retry", True, (0, 0, 0)),
+                        (self.width/2 - 32, self.height/2 + 18))
+
+            #retry highlight
+            if self.retryHighlight:
+                pygame.draw.rect(screen, (255, 255, 0),
+                            (self.width/2 - 50, self.height/2 + 20, 100, 40), self.highlight)
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''
