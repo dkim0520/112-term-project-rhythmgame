@@ -22,7 +22,7 @@ def getHitObject(osuFile):
 
 def parseHitObjectData(hitFile):
     with io.open(hitFile, "r", encoding = "utf-8") as f:
-        resultTuples = []
+        resultTuples = set()
         for line in f.readlines():
             count = 0
             result = []
@@ -36,7 +36,8 @@ def parseHitObjectData(hitFile):
                     result.append(int(info))
                 elif count == 6:
                     result.append(info.strip())
-            resultTuples.append(tuple(result))
+            resultTuples.add(tuple(result))
             result = []
         return resultTuples
 
+parseHitObjectData("Songs/Bowling For Soup - 1985 (Voli) ['85].osu hitObjects")
