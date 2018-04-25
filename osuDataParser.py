@@ -11,8 +11,11 @@ import string
 
 def getHitObject(osuFile):
     hitObjectsFound = False
-    with io.open("Songs" + os.sep + osuFile, "r", encoding = "utf-8") as f:
+    with io.open(osuFile, "r", encoding = "utf-8") as f:
         for line in f.readlines():
+            if "AudioFilename" in line:
+                with io.open("%s hitObjects" %(osuFile), "a", encoding = "utf-8") as g:
+                    g.write(line)
             if '[HitObjects]' in line:
                 hitObjectsFound = True
             elif hitObjectsFound == True:
@@ -22,11 +25,13 @@ def getHitObject(osuFile):
 
 def parseHitObjectData(hitFile):
     with io.open(hitFile, "r", encoding = "utf-8") as f:
-        resultTuples = set()
+        resultTuples = []
         for line in f.readlines():
             count = 0
             result = []
             for info in line.split(","):
+                if info[:15] == "AudioFilename: ":
+                    resultTuples.append((info.strip()))
                 count += 1
                 if count == 2:
                     result.append(int(info))
@@ -36,8 +41,16 @@ def parseHitObjectData(hitFile):
                     result.append(int(info))
                 elif count == 6:
                     result.append(info.strip())
-            resultTuples.add(tuple(result))
-            result = []
-        return resultTuples
+            resultTuples.append(result)
+        resultTuples.pop(1)
+        musicName = ""
+        for hits in range(len(resultTuples)):
+            if "AudioFilename: " in resultTuples[hits]:
+                musicName = resultTuples[hits]
+            elif isinstance(resultTuples[hits-1], int) and abs(resultTuples[hits][0] - resultTuples[hits - 1][0]) > 100:
+                resultTuples[hits][0] = resultTuples[hits-1][0] + (resultTuples[hits][0] - resultTuples[hits - 1][0])
+            resultTuples[hits] = tuple(resultTuples[hits])
+        return (resultTuples[1:],musicName[15:])
 
-parseHitObjectData("Songs/Bowling For Soup - 1985 (Voli) ['85].osu hitObjects")
+#print(parseHitObjectData(getHitObject("Songs\Bowling For Soup - 1985 (Voli) ['85].osu")))
+#print(len(parseHitObjectData(getHitObject("Songs\Bowling For Soup - 1985 (Voli) ['85].osu"))))

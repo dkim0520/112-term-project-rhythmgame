@@ -54,7 +54,6 @@ class PygameGame(object):
 
         #start default level
         elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 140 <= y <= self.height/2 - 60:
-            print(self.state)
             self.state = "Game State"
             self.recentfilePath = "Game"
             Character.init()
@@ -64,6 +63,7 @@ class PygameGame(object):
             platform = Platform(0, self.height/2 + 25, self.startPlatLength)
             self.platformGroup = pygame.sprite.Group(platform)
 
+        #failed screen
         elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
             if self.recentfilePath == "":
                 Character.init()
@@ -77,13 +77,37 @@ class PygameGame(object):
                 character = Character(self.width/2, self.height/2 - 25)
                 self.characterGroup = pygame.sprite.GroupSingle(character)
                 Platform.init()
-                platform = Platform(0, self.height/2 + 25, self.startPlatLength)
+                platform = Platform(self.width/2, self.height/2 + 25, 0)
                 self.platformGroup = pygame.sprite.Group(platform)
-                for hitButton in parseHitObjectData(getHitObject(self.recentfilePath)):
+                
+                finalPlatform = 0
+                for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
+                    if hitButton[1] > finalPlatform:
+                        finalPlatform = hitButton[1]
                     if hitButton[0] > self.height:
-                        self.platformGroup.add(Platform(self.height, hitButton[0], 50))
+                        self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
                     else:
-                        self.platformGroup.add(Platform(hitButton[1], hitButton[0],50))
+                        self.platformGroup.add(Platform(hitButton[1]//10 - 500, hitButton[0], 50))
+
+                pygame.mixer.music.load("Songs" + os.sep + parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[1])
+
+                #removes the file where the data was parsed for logistical reasons
+                os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
+
+                #creates a first platform to start from
+                workingFirstX, workingFirstY = finalPlatform, 0
+                for platform in self.platformGroup:
+                    if platform.x < workingFirstX:
+                        workingFirstX, workingFirstY = platform.x, platform.y
+                firstPlatform = (workingFirstX, workingFirstY)
+
+                self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
+                for character in self.characterGroup:
+                    character.x, character.y = firstPlatform
+
+                #plays music associated with file
+                pygame.mixer.music.play()
+                self.state = "%s State" %(self.recentfilePath)
 
         #load file
         elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
@@ -93,12 +117,42 @@ class PygameGame(object):
             while tempCheck not in os.listdir("Songs") or tempCheck[-4:] != ".osu":
                 tempCheck = input("Paste the name of a valid file here: ")
             self.recentfilePath = tempCheck
-            #note, make more efficient
-            for hitButton in parseHitObjectData(getHitObject(self.recentfilePath)):
+            
+            #initialize character and starting platform again
+            Character.init()
+            character = Character(self.width/2, self.height/2 - 25)
+            self.characterGroup = pygame.sprite.GroupSingle(character)
+            Platform.init()
+            platform1 = Platform(self.width/2, self.height/2 + 25, 0)
+            self.platformGroup = pygame.sprite.Group(platform1)
+
+            finalPlatform = 0
+            for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
+                if hitButton[1] > finalPlatform:
+                    finalPlatform = hitButton[1]
                 if hitButton[0] > self.height:
-                    self.platformGroup.add(Platform(self.height, hitButton[0], 50))
+                    self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
                 else:
-                    self.platformGroup.add(Platform(hitButton[1], hitButton[0],50))
+                    self.platformGroup.add(Platform(hitButton[1]//10 - 500, hitButton[0], 50))
+
+            pygame.mixer.music.load("Songs" + os.sep + parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[1])
+
+            #removes the file where the data was parsed for logistical reasons
+            os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
+
+            #creates a first platform to start from
+            workingFirstX, workingFirstY = finalPlatform, 0
+            for platform in self.platformGroup:
+                if platform.x < workingFirstX:
+                    workingFirstX, workingFirstY = platform.x, platform.y
+            firstPlatform = (workingFirstX, workingFirstY)
+
+            self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
+            for character in self.characterGroup:
+                character.x, character.y = firstPlatform
+
+            #plays music associated with file
+            pygame.mixer.music.play()
             self.state = "%s State" %(self.recentfilePath)
 
     def mouseReleased(self, x, y):
@@ -156,20 +210,15 @@ class PygameGame(object):
         self.platformGroup.update(self.isKeyPressed, self.width, self.height)
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
 
-        if self.state == "Game State":
-            if self.timesFired % 50 == 0: #adds platforms every so often
-                self.platformGroup.add(Platform(self.width, self.height/2 + 25, 50))
-            if self.timesFired % 50 == 25:
-                self.platformGroup.add(Platform(self.width, self.height/2 - 25, 25))
-
         for character in pygame.sprite.groupcollide(
             self.characterGroup, self.platformGroup, False, False):
             # checks collisions with platforms and modifies character accordingly
             character.isJump = False
             character.onPlatform = True
             for platform in pygame.sprite.groupcollide(self.platformGroup, self.characterGroup, False, False):
-                if character.x < platform.x:
-                    character.x = platform.x - 50
+                character.scroll = platform.scroll
+                if character.x + 25 < platform.x:
+                    character.x = platform.x - 45
                 elif character.onPlatform:    
                     character.y = platform.y - 25
                     character.velocity = 0 
@@ -178,6 +227,7 @@ class PygameGame(object):
                     character.y = platform.y + 25
 
         for platforms in self.platformGroup:
+            platforms.scroll = (-3, 0)
             if platforms.x + platforms.length < 0:
                 self.platformGroup.remove(platforms)
 
@@ -185,8 +235,20 @@ class PygameGame(object):
             if not character.isJump and self.state == "%s State" %(self.recentfilePath):
                 character.onPlatform = False
 
-            if character.y > self.height:
+            if character.y >= self.height:
                 self.state = "Lost"
+                pygame.mixer.music.stop()
+
+        if self.state == "Game State":
+            if self.timesFired % 50 == 0: #adds platforms every so often
+                self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 + 25, 70))
+            if self.timesFired % 50 == 25:
+                self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 - 25, 75))
+
+            for char in self.characterGroup:
+                for platform in self.platformGroup:
+                    platform.scroll = (-2, 0)
+
 
 
     def redrawAll(self, screen):
