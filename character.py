@@ -20,12 +20,14 @@ class Character(GameObject):
         self.dy = 1
         self.gF = 0
         self.scroll = (0, 0)
+        self.points = 0
+        self.canJump = True
 
     def update(self, keysDown, screenWidth, screenHeight):
         if self.onPlatform:
             self.isJump = False
-            self.scroll = (-4 ,0)
             self.y = screenHeight//2
+            self.canJump = True
 
         if self.isJump:
             self.gF = 0.5 * self.velocity**2
@@ -35,25 +37,30 @@ class Character(GameObject):
                 self.y += self.gF
                 self.angle -= 4.1
 
+
         if not self.isJump:
             self.velocity = 0
             self.angle = 90
 
         self.updateRect()
 
-        if keysDown(pygame.K_UP) and self.isJump == False:
+        if not self.onPlatform and keysDown(pygame.K_UP):
+            pass
+
+        if keysDown(pygame.K_UP) and self.isJump == False and self.canJump:
             self.isJump = True
             self.onPlatform = False
             self.velocity = 3
 
         if keysDown(pygame.K_LEFT):
-            self.x -= 15
+            self.x -= 10
 
         if keysDown(pygame.K_RIGHT):
-            self.x += 15
+            self.x += 10
 
         if not self.onPlatform and not self.isJump:
             self.y += 10
+            self.canJump = False
         super(Character, self).update(screenWidth, screenHeight)
 
 

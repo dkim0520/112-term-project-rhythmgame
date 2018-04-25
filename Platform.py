@@ -1,6 +1,5 @@
 ###Platform.py###
 import pygame
-import time
 from GameObject import GameObject
 
 class Platform(GameObject):

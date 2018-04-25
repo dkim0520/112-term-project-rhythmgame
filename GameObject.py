@@ -9,7 +9,7 @@ class GameObject(pygame.sprite.Sprite):
         self.baseImage = image.copy()
         w, h = image.get_size()
         self.updateRect()
-        self.scroll = (-4, 0)
+        self.scroll = (-2, 0)
         self.velocity = 0
         self.angle = 0
 

@@ -31,6 +31,7 @@ class SimpleBeatDetection(object):
 
         return beat
 
+#skeleton PyAudio code from PyAudio documentation
 CHUNK = 1024
 
 wf = wave.open("bach.wav", "rb")

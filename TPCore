@@ -5,6 +5,7 @@ import sys
 import pygame
 from character import Character
 from Platform import Platform
+from PointCircle import PointCircle
 from osuDataParser import *
 ###
 # initialization
@@ -16,10 +17,15 @@ class PygameGame(object):
 
     def init(self):
         self.state = "Start Menu" #different games states for different modes
+        self.pause = False
+        self.prevState = ""
 
         self.recentfilePath = ""
 
-        self.startPlatLength = 5000
+        self.startPlatLength = 3000
+
+        self.finalPlatform = 0
+
         #highlights
         self.highlight = 5
         self.playHighlight = False
@@ -28,6 +34,8 @@ class PygameGame(object):
         self.tutorialHighlight = False
         self.backLoadHighlight = False
         self.retryHighlight = False
+        self.backFailHighlight = False
+        self.backWinHighlight = False
 
         Character.init()
         character = Character(self.width/2, self.height/2)
@@ -59,31 +67,47 @@ class PygameGame(object):
             Character.init()
             character = Character(self.width/2, self.height/2 - 25)
             self.characterGroup = pygame.sprite.GroupSingle(character)
+
             Platform.init()
             platform = Platform(0, self.height/2 + 25, self.startPlatLength)
             self.platformGroup = pygame.sprite.Group(platform)
 
-        #failed screen
+            PointCircle.init()
+            pointCircle = PointCircle(0, self.height/2 + 40)
+            self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+
+        #failed screen retry button
         elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
             if self.recentfilePath == "":
                 Character.init()
                 character = Character(self.width/2, self.height/2 - 25)
                 self.characterGroup = pygame.sprite.GroupSingle(character)
+
                 Platform.init()
                 platform = Platform(0, self.height/2 + 25, self.startPlatLength)
                 self.platformGroup = pygame.sprite.Group(platform)
+
+                PointCircle.init()
+                pointCircle = PointCircle(0, self.height/2 + 40)
+                self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+
             else:
                 Character.init()
                 character = Character(self.width/2, self.height/2 - 25)
                 self.characterGroup = pygame.sprite.GroupSingle(character)
+
                 Platform.init()
                 platform = Platform(self.width/2, self.height/2 + 25, 0)
                 self.platformGroup = pygame.sprite.Group(platform)
+
+                PointCircle.init()
+                pointCircle = PointCircle(0, self.height/2 + 40)
+                self.pointCircleGroup = pygame.sprite.Group(pointCircle)
                 
-                finalPlatform = 0
+                self.finalPlatform = 0
                 for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
-                    if hitButton[1] > finalPlatform:
-                        finalPlatform = hitButton[1]
+                    if hitButton[1] > self.finalPlatform:
+                        self.finalPlatform = hitButton[1]
                     if hitButton[0] > self.height:
                         self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
                     else:
@@ -95,19 +119,27 @@ class PygameGame(object):
                 os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
 
                 #creates a first platform to start from
-                workingFirstX, workingFirstY = finalPlatform, 0
+                workingFirstX, workingFirstY = self.finalPlatform, 0
                 for platform in self.platformGroup:
                     if platform.x < workingFirstX:
                         workingFirstX, workingFirstY = platform.x, platform.y
                 firstPlatform = (workingFirstX, workingFirstY)
 
+                for platform in self.platformGroup:
+                    self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
+
                 self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
                 for character in self.characterGroup:
                     character.x, character.y = firstPlatform
 
+
                 #plays music associated with file
                 pygame.mixer.music.play()
                 self.state = "%s State" %(self.recentfilePath)
+
+        #failed screen back button
+        elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
+            self.state = "Load File State"
 
         #load file
         elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
@@ -122,14 +154,19 @@ class PygameGame(object):
             Character.init()
             character = Character(self.width/2, self.height/2 - 25)
             self.characterGroup = pygame.sprite.GroupSingle(character)
+
             Platform.init()
             platform1 = Platform(self.width/2, self.height/2 + 25, 0)
             self.platformGroup = pygame.sprite.Group(platform1)
 
-            finalPlatform = 0
+            PointCircle.init()
+            pointCircle = PointCircle(0, self.height/2 + 40)
+            self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+
+            self.finalPlatform = 0
             for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
-                if hitButton[1] > finalPlatform:
-                    finalPlatform = hitButton[1]
+                if hitButton[1] > self.finalPlatform:
+                    self.finalPlatform = hitButton[1]
                 if hitButton[0] > self.height:
                     self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
                 else:
@@ -140,20 +177,33 @@ class PygameGame(object):
             #removes the file where the data was parsed for logistical reasons
             os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
 
+            #add platforms after initializing them
+            for platform in self.platformGroup:
+                if platform.x > self.width/2:
+                    self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
+
+            #creates final platform
+            self.platformGroup.add(Platform(self.finalPlatform, self.height - 30, 1500))
+
             #creates a first platform to start from
-            workingFirstX, workingFirstY = finalPlatform, 0
+            workingFirstX, workingFirstY = self.finalPlatform, 0
             for platform in self.platformGroup:
                 if platform.x < workingFirstX:
                     workingFirstX, workingFirstY = platform.x, platform.y
             firstPlatform = (workingFirstX, workingFirstY)
 
             self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
+            #sets character on starting platform
             for character in self.characterGroup:
                 character.x, character.y = firstPlatform
 
             #plays music associated with file
             pygame.mixer.music.play()
             self.state = "%s State" %(self.recentfilePath)
+
+        #win screen back button
+        elif self.state == "Win" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
+            self.state = "Load File State"
 
     def mouseReleased(self, x, y):
         pass
@@ -194,11 +244,31 @@ class PygameGame(object):
         else:
             self.retryHighlight = False
 
+        #highlight for fail back button
+        if self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
+            self.backFailHighlight = True
+        else:
+            self.backFailHighlight = False
+
+        #highlight for win back button
+        if self.state == "Win" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
+            self.backWinHighlight = True
+        else:
+            self.backWinHighlight = False
+
     def mouseDrag(self, x, y):
         pass
 
     def keyPressed(self, keyCode, modifier):
-        pass
+        if keyCode == pygame.K_ESCAPE:
+            if self.pause == True:
+                self.state = self.prevState
+                self.pause = False
+            elif self.pause == False:
+                self.pause = True
+                self.prevState = self.state
+                self.state = "Pause"
+
             
 
     def keyReleased(self, keyCode, modifier):
@@ -209,25 +279,31 @@ class PygameGame(object):
         self.timesFired += 1
         self.platformGroup.update(self.isKeyPressed, self.width, self.height)
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
+        self.pointCircleGroup.update(self.isKeyPressed, self.width, self.height)
 
         for character in pygame.sprite.groupcollide(
             self.characterGroup, self.platformGroup, False, False):
             # checks collisions with platforms and modifies character accordingly
             character.isJump = False
             character.onPlatform = True
+            character.canJump = True
             for platform in pygame.sprite.groupcollide(self.platformGroup, self.characterGroup, False, False):
                 character.scroll = platform.scroll
-                if character.x + 25 < platform.x:
-                    character.x = platform.x - 45
-                elif character.onPlatform:    
-                    character.y = platform.y - 25
+                if character.y < platform.y:
+                    character.y = platform.y + 25
+                if character.onPlatform:    
+                    character.y = platform.y - 30
                     character.velocity = 0 
                     character.angle = 90
-                elif character.y < platform.y:
-                    character.y = platform.y + 25
+                elif character.x + 25 < platform.x:
+                    character.x = platform.x - 45
+
+        for character in pygame.sprite.groupcollide(
+            self.characterGroup, self.pointCircleGroup, False, True):
+            character.points += 100
 
         for platforms in self.platformGroup:
-            platforms.scroll = (-3, 0)
+            platforms.scroll = (-2, 0)
             if platforms.x + platforms.length < 0:
                 self.platformGroup.remove(platforms)
 
@@ -239,17 +315,25 @@ class PygameGame(object):
                 self.state = "Lost"
                 pygame.mixer.music.stop()
 
+            if character.x == self.finalPlatform + 1300:
+                self.state = "Win"
+                pygame.mixer.music.stop()
+
+            elif character.isJump:
+                character.canJump = False
+
+
         if self.state == "Game State":
             if self.timesFired % 50 == 0: #adds platforms every so often
                 self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 + 25, 70))
+                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3 + 35, self.height/2 - 55))
             if self.timesFired % 50 == 25:
                 self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 - 25, 75))
+                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3 + 35, self.height/2))
 
             for char in self.characterGroup:
                 for platform in self.platformGroup:
                     platform.scroll = (-2, 0)
-
-
 
     def redrawAll(self, screen):
         if self.state == "Start Menu":
@@ -277,7 +361,7 @@ class PygameGame(object):
                 pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
                                  self.height/2 + 75, 200, 80), self.highlight)
 
-        if self.state == "Load File State":
+        elif self.state == "Load File State":
             screen.fill((0, 255, 0))
             #back button
             pygame.draw.rect(screen, (155, 0, 0), (0, 0, 50, 50))
@@ -313,6 +397,18 @@ class PygameGame(object):
         elif self.state == "Game State" or self.state == "%s State" %(self.recentfilePath):
             self.characterGroup.draw(screen)
             self.platformGroup.draw(screen)
+            self.pointCircleGroup.draw(screen)
+            for character in self.characterGroup:
+                points = character.points
+            if points < 1000:
+                screen.blit(self.retryFont.render("Points: %d" %(points), True, (0, 0, 0)),
+                            (self.width - 150, 10))
+            elif 1000 <= points < 10000:
+                screen.blit(self.retryFont.render("Points: %d" %(points), True, (0, 0, 0)),
+                             (self.width - 170, 10))
+            else:
+                screen.blit(self.retryFont.render("Points: %d" %(points), True, (0, 0 ,0)),
+                            (self.width - 190, 10))
 
         elif self.state == "Lost":
             screen.fill((255, 0, 0))
@@ -329,6 +425,42 @@ class PygameGame(object):
             if self.retryHighlight:
                 pygame.draw.rect(screen, (255, 255, 0),
                             (self.width/2 - 50, self.height/2 + 20, 100, 40), self.highlight)
+
+            #main menu button
+            pygame.draw.rect(screen, (100, 155, 155),
+                            (self.width/2 - 50, self.height/2 + 70, 100, 40))
+            screen.blit(self.retryFont.render("Back", True, (0, 0, 0)),
+                        (self.width/2 - 32, self.height/2 + 68))
+
+            #main menu highlight
+            if self.backFailHighlight:
+                pygame.draw.rect(screen, (255, 255, 0),
+                            (self.width/2 - 50, self.height/2 + 70, 100, 40), self.highlight)
+
+        elif self.state == "Win":
+            screen.fill((0, 255, 0))
+            screen.blit(self.startFont.render("Success!", True, (0, 0, 0)),
+                        (self.width/2 - 90, self.height/2 - 100))
+
+            #main menu button
+            pygame.draw.rect(screen, (100, 155, 155),
+                            (self.width/2 - 50, self.height/2 + 70, 100, 40))
+            screen.blit(self.retryFont.render("Back", True, (0, 0, 0)),
+                        (self.width/2 - 32, self.height/2 + 68))
+
+            #main menu highlight
+            if self.backWinHighlight:
+                pygame.draw.rect(screen, (255, 255, 0),
+                            (self.width/2 - 50, self.height/2 + 70, 100, 40), self.highlight)
+
+        elif self.state == "Pause":
+            self.characterGroup.draw(screen)
+            self.platformGroup.draw(screen)
+            self.pointCircleGroup.draw(screen)
+            pauseScreen = pygame.Surface((self.width, self.height))
+            pauseScreen.set_alpha(100)
+            pauseScreen.fill((155, 155, 155))
+            screen.blit(pauseScreen, (0, 0))
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''

@@ -13,8 +13,12 @@ Competitive Analysis:
     not have the ability to generate any level given a loaded song. However, the basic principle
     of jumping onto platforms and over obstacles to a beat will be fairly similar to how I plan on
     creating this project. An additional game that is similar to the one I am making is the popular
-    game titled "Geometry Dash." While the basic mechanics of both "Geometry Dash" and "The Impossible Game" are very similar to my "PyRhythm Platformer," "Geometry Dash" still does
-    not have the ability to generate levels given an audio file. However, "Geometry Dash" has the added feature of a level editor, which allows users to create their own levels to a song of their choosing. In addition, "Geometry Dash" has additional complexity in certain tile triggers that add a layer of difficulty, such as switching the gravity of a level or allowing the main character fly up and down when the screen is tapped/clicked. 
+    game titled "Geometry Dash." While the basic mechanics of both "Geometry Dash" and "The Impossible Game" 
+    are very similar to my "PyRhythm Platformer," "Geometry Dash" still does not have the ability to 
+    generate levels given an audio file. However, "Geometry Dash" has the added feature of a level editor, 
+    which allows users to create their own levels to a song of their choosing. In addition, "Geometry Dash" 
+    has additional complexity in certain tile triggers that add a layer of difficulty, such as switching the 
+    gravity of a level or allowing the main character fly up and down when the screen is tapped/clicked. 
 
     
 Structural Plan:
@@ -29,7 +33,11 @@ Algorithmic Plan:
     By using PyAudio and taking in raw sound data, I plan on implementing a program that
     first determines the beats per minute of an audio file, and in combination with a pitch
     detection program, I plan on determining where in time certain notes are played, and thus
-    being able to detect the beats of an audio file. 
+    being able to detect the beats of an audio file. Using this beat detection algorithm, the second
+    challenginng part will be implementing the beat detection in order to generate platforms
+    accordingly. Using the time difference between each beat, in addition to, to some extent,
+    its pitch, placing platforms will be a matter of obtaining those two components of the
+    song and loading the platforms based on those components. 
 
 
 Timeline Plan:
@@ -49,3 +57,6 @@ Module List:
     PyGame
     PyAudio
     Aubio
+
+TP2:
+    Put more focus into gameplay aspects rather than the audio analyzing.
