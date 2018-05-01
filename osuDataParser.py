@@ -39,18 +39,16 @@ def parseHitObjectData(hitFile):
                     result.append(int(info))
                 elif count == 4:
                     result.append(int(info))
-                elif count == 6:
-                    result.append(info.strip())
             resultTuples.append(result)
         resultTuples.pop(1)
         musicName = ""
         for hits in range(len(resultTuples)):
             if "AudioFilename: " in resultTuples[hits]:
                 musicName = resultTuples[hits]
-            elif isinstance(resultTuples[hits-1], int) and abs(resultTuples[hits][0] - resultTuples[hits - 1][0]) > 100:
+            elif isinstance(resultTuples[hits-1][0], int) and abs(resultTuples[hits][0] - resultTuples[hits - 1][0]) > 50:
                 resultTuples[hits][0] = resultTuples[hits-1][0] + (resultTuples[hits][0] - resultTuples[hits - 1][0])
             resultTuples[hits] = tuple(resultTuples[hits])
         return (resultTuples[1:],musicName[15:])
 
-#print(parseHitObjectData(getHitObject("Songs\Bowling For Soup - 1985 (Voli) ['85].osu")))
+#print(parseHitObjectData(getHitObject("Songs\Kero Kero Bonito - Flamingo (staszek00700) [Insane].osu")))
 #print(len(parseHitObjectData(getHitObject("Songs\Bowling For Soup - 1985 (Voli) ['85].osu"))))

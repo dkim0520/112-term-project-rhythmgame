@@ -50,7 +50,7 @@ class Character(GameObject):
         if keysDown(pygame.K_UP) and self.isJump == False and self.canJump:
             self.isJump = True
             self.onPlatform = False
-            self.velocity = 3
+            self.velocity = 2
 
         if keysDown(pygame.K_LEFT):
             self.x -= 10

@@ -2,6 +2,8 @@
 import pyaudio
 import numpy
 import wave
+import aubio
+import pygame
 
 class SimpleBeatDetection(object):
     """
@@ -28,30 +30,61 @@ class SimpleBeatDetection(object):
         self.local_energy_index -= 1
         if self.local_energy_index < 0:
             self.local_energy_index = len(self.local_energy) - 1
-
         return beat
 
 #skeleton PyAudio code from PyAudio documentation
-CHUNK = 1024
+#wf = wave.open("bach.wav", "rb")
+class Record(object):
+    def __init__(self):
+        self.record = False
 
-wf = wave.open("bach.wav", "rb")
+    def micPitchVolumeDetect(self, keyDown):
+        p = pyaudio.PyAudio()
+        FORMAT = pyaudio.paFloat32
+        CHANNELS = 2
+        RATE = 44100
+        CHUNK = 2048
+        HOP_SIZE = CHUNK//2
+        PERIOD_SIZE_IN_FRAME = HOP_SIZE
 
-p = pyaudio.PyAudio()
+        audio = pyaudio.PyAudio()
+         
+        pitchDetect = aubio.pitch("default", CHUNK, HOP_SIZE*2, RATE)
+        pitchDetect.set_unit("midi")
+        pitchDetect.set_silence(-40)
 
-stream = p.open(format = p.get_format_from_width(wf.getsampwidth()),
-                channels = wf.getnchannels(),
-                rate = wf.getframerate(),
-                output = True)
+        # start Recording
+        stream = audio.open(format=FORMAT, channels=CHANNELS,
+                        rate=RATE, input=True,
+                        frames_per_buffer=PERIOD_SIZE_IN_FRAME)
 
-data = wf.readframes(CHUNK)
-beat = SimpleBeatDetection()
-while len(data) > 0:
-    # stream.write(data)
-    data1 = wf.readframes(CHUNK)
-    signal = numpy.frombuffer(data1, numpy.int16)
-    print(beat.detect_beat(signal))
+        data = stream.read(HOP_SIZE)
+        #beat = SimpleBeatDetection()
+        count = 0
+        while keyDown(pygame.K_r) and self.record:
+            # stream.write(data)
+            count += 1
+            data = stream.read(PERIOD_SIZE_IN_FRAME)
+            # signal = numpy.frombuffer(data, numpy.int16)
+            # (beat.detect_beat(signal))
 
-stream.stop_stream()
-stream.close()
+            #volume detection from https://gist.github.com/notalentgeek/48aeab398b6b74e3a9134a61b6b79a36
+            samples = numpy.fromstring(data, dtype = aubio.float_type)
+            volume = numpy.sum(samples**2)/len(samples)
 
-p.terminate()
+            volume = "{:6f}".format(volume)
+            #print(str(volume))
+
+            #pitch detection from same website as above
+            pitch = pitchDetect(samples)[0]
+            if count % 5 == 0 and pitch < 100:
+                print(pitch)
+
+        stream.stop_stream()
+        stream.close()
+
+        p.terminate()
+
+
+# record = Record()
+# record.micPitchVolumeDetect()

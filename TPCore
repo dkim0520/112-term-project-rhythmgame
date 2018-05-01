@@ -7,6 +7,15 @@ from character import Character
 from Platform import Platform
 from PointCircle import PointCircle
 from osuDataParser import *
+from beatDetect import Record
+from pydub import AudioSegment
+import pyaudio
+import aubio
+import numpy
+import math
+import time
+import io
+
 ###
 # initialization
 ###
@@ -19,6 +28,9 @@ class PygameGame(object):
         self.state = "Start Menu" #different games states for different modes
         self.pause = False
         self.prevState = ""
+        self.hitData = []
+        self.analyzeList = []
+        self.record = False
 
         self.recentfilePath = ""
 
@@ -36,20 +48,40 @@ class PygameGame(object):
         self.retryHighlight = False
         self.backFailHighlight = False
         self.backWinHighlight = False
+        self.backLevelEditorHighlight = False
+        self.recordButtonHighlight = False
+        self.analyzePlayButtonHighlight = False
+        self.recordAgainButtonHighlight = False
+        self.analyzeMainMenuHighlight = False
+        self.pauseRetryHighlight = False
+        self.pauseMainMenuHighlight = False
 
         Character.init()
         character = Character(self.width/2, self.height/2)
         self.characterGroup = pygame.sprite.GroupSingle(character)
 
         Platform.init()
-        platform = Platform(self.width, self.height, 25)
+        platform = Platform(self.width + 100, self.height+100, 25)
         self.platformGroup = pygame.sprite.Group(platform)
 
+        PointCircle.init()
+        pointCircle = PointCircle(-100, -100)
+        self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+
+        self.loadingImage = pygame.transform.rotate(pygame.transform.scale(
+                pygame.image.load('images/character.png').convert_alpha(),
+                (50,50)), -90)
+        self.baseLoadingImage = self.loadingImage.copy()
+        self.loadingAngle = 0
+
         #fonts
-        self.startFont = pygame.font.SysFont('Helvetica', self.width//8)
-        self.playFont = pygame.font.SysFont("Helvetica", self.width//16)
-        self.retryFont = pygame.font.SysFont("Helvetica", self.width//18)
-        self.backFont = pygame.font.SysFont("Helvetica", 50)
+        self.startFont = pygame.font.SysFont('Terminal', self.width//8)
+        self.playFont = pygame.font.SysFont("Terminal", self.width//13)
+        self.retryFont = pygame.font.SysFont("Terminal", self.width//20)
+        self.backFont = pygame.font.SysFont("Terminal", 50)
+        self.tutFont = pygame.font.SysFont("Terminal", self.width//15)
+        self.recordFont = pygame.font.SysFont("Terminal", self.width//17)
+        self.recordAgainFont = pygame.font.SysFont("Terminal", self.width//14)
 
     def mousePressed(self, x, y):
         #load file menu
@@ -58,6 +90,10 @@ class PygameGame(object):
             
         #back button mouse press
         elif self.state == "Load File State" and 0 <= x <= 50 and 0 <= y <= 50:
+            self.state = "Start Menu"
+
+        #back level editor mouse press
+        elif self.state == "Level Editor Menu" and 0 <= x <= 50 and 0 <= y <= 50:
             self.state = "Start Menu"
 
         #start default level
@@ -69,6 +105,7 @@ class PygameGame(object):
             self.characterGroup = pygame.sprite.GroupSingle(character)
 
             Platform.init()
+            self.startPlatLength = 2000
             platform = Platform(0, self.height/2 + 25, self.startPlatLength)
             self.platformGroup = pygame.sprite.Group(platform)
 
@@ -76,9 +113,42 @@ class PygameGame(object):
             pointCircle = PointCircle(0, self.height/2 + 40)
             self.pointCircleGroup = pygame.sprite.Group(pointCircle)
 
+        #record screen
+        elif self.state == "Level Editor Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 140 <= y <= self.height/2 - 60:
+            self.state = "Record"
+
+        elif self.state == "Done Analyzing" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 100 <= y <= self.height/2 + 180:
+            self.state = "Start Menu"
+
+        elif self.state == "Done Analyzing" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 80 <= y <= self.height/2:
+            #maybe be able to play existing analyzed recordings
+            self.characterGroup.empty()
+            self.platformGroup.empty()
+            self.pointCircleGroup.empty()
+            lastPlatformX = 0
+            lastPlatformY = 0
+            lastPlatformLength = 0
+            for platform in self.analyzeList:
+                if self.analyzeList.index(platform) == 0:
+                    characterX = platform[0] + 10
+                    characterY = platform[1] - 25
+                    self.characterGroup.add(Character(characterX, characterY))
+                    self.platformGroup.add(Platform(platform[0], platform[1], platform[2]))
+                else:
+                    self.platformGroup.add(Platform(platform[0], platform[1], platform[2]))
+                    self.pointCircleGroup.add(PointCircle(platform[0], platform[1] - 25))
+            for platform in self.analyzeList:
+                if platform[0] > lastPlatformX:
+                    lastPlatformX = platform[0]
+                    lastPlatformY = platform[1]
+                    lastPlatformLength = platform[2]
+            self.platformGroup.add(Platform(lastPlatformX, lastPlatformY, lastPlatformLength, True))
+            self.state = "Play Analyzed Recording State"
+            self.recentfilePath = "Play Analyzed Recording"
+
         #failed screen retry button
         elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
-            if self.recentfilePath == "":
+            if self.recentfilePath == "Game":
                 Character.init()
                 character = Character(self.width/2, self.height/2 - 25)
                 self.characterGroup = pygame.sprite.GroupSingle(character)
@@ -90,6 +160,11 @@ class PygameGame(object):
                 PointCircle.init()
                 pointCircle = PointCircle(0, self.height/2 + 40)
                 self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+
+                self.state = "Game State"
+
+            elif self.prevState == "Play Analyzed Recording State":
+                self.state = "Done Analyzing"
 
             else:
                 Character.init()
@@ -105,18 +180,28 @@ class PygameGame(object):
                 self.pointCircleGroup = pygame.sprite.Group(pointCircle)
                 
                 self.finalPlatform = 0
-                for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
-                    if hitButton[1] > self.finalPlatform:
-                        self.finalPlatform = hitButton[1]
-                    if hitButton[0] > self.height:
-                        self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
+                for hitButton in range(len(self.hitData[0])):
+                    if self.hitData[0][hitButton][1] > self.finalPlatform:
+                        self.finalPlatform = self.hitData[0][hitButton][1]
+                    if self.hitData[0][hitButton][0] > self.height:
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.height, 50))
+                    elif abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1]) > 1000 and hitButton > 0:
+                        #print(abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100)
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, 
+                                                        self.hitData[0][hitButton][0], 
+                                                        abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100))
                     else:
-                        self.platformGroup.add(Platform(hitButton[1]//10 - 500, hitButton[0], 50))
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.hitData[0][hitButton][0], 50))
 
-                pygame.mixer.music.load("Songs" + os.sep + parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[1])
+                pygame.mixer.music.load("Songs" + os.sep + self.hitData[1])
 
-                #removes the file where the data was parsed for logistical reasons
-                os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
+                #add platforms after initializing them
+                for platform in self.platformGroup:
+                    if platform.x > self.width/2:
+                        self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
+
+                #creates final platform
+                self.platformGroup.add(Platform(self.finalPlatform//10 - 500, self.height - 150, 1500, True))
 
                 #creates a first platform to start from
                 workingFirstX, workingFirstY = self.finalPlatform, 0
@@ -125,85 +210,174 @@ class PygameGame(object):
                         workingFirstX, workingFirstY = platform.x, platform.y
                 firstPlatform = (workingFirstX, workingFirstY)
 
-                for platform in self.platformGroup:
-                    self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
-
-                self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
+                self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 600))
+                #sets character on starting platform
                 for character in self.characterGroup:
                     character.x, character.y = firstPlatform
-
 
                 #plays music associated with file
                 pygame.mixer.music.play()
                 self.state = "%s State" %(self.recentfilePath)
 
+        #win screen back button
+        elif self.state == "Win" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
+            self.state = "Start Menu"
+
+        #level editor menu button
+        elif self.state == "Start Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 75 <= y <= self.height/2 + 155:
+            self.state = "Level Editor Menu"
+
         #failed screen back button
         elif self.state == "Lost" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
-            self.state = "Load File State"
+            if self.prevState == "Play Analyzed Recording State":
+                self.state = "Level Editor Menu"
+            else:
+                self.state = "Load File State"
 
         #load file
         elif self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
             #checks if valid file type and file exists
-            tempCheck = input("Paste the name of the file here: ")
+            tempCheck = input("Paste the name of the file here, or type Back: ")
             #if found, loads location of each platform
-            while tempCheck not in os.listdir("Songs") or tempCheck[-4:] != ".osu":
-                tempCheck = input("Paste the name of a valid file here: ")
-            self.recentfilePath = tempCheck
+            if tempCheck == "Back":
+                self.state = "Load File State"
+            else:
+                while tempCheck != "Back" and tempCheck not in os.listdir("Songs") or tempCheck[-4:] != ".osu":
+                    tempCheck = input("Paste the name of a valid file here: ")
+                self.recentfilePath = tempCheck
             
-            #initialize character and starting platform again
-            Character.init()
-            character = Character(self.width/2, self.height/2 - 25)
-            self.characterGroup = pygame.sprite.GroupSingle(character)
+                #initialize character and starting platform again
+                Character.init()
+                character = Character(self.width/2, self.height/2 - 25)
+                self.characterGroup = pygame.sprite.GroupSingle(character)
 
-            Platform.init()
-            platform1 = Platform(self.width/2, self.height/2 + 25, 0)
-            self.platformGroup = pygame.sprite.Group(platform1)
+                Platform.init()
+                platform1 = Platform(self.width/2, self.height/2 + 25, 0)
+                self.platformGroup = pygame.sprite.Group(platform1)
 
-            PointCircle.init()
-            pointCircle = PointCircle(0, self.height/2 + 40)
-            self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+                PointCircle.init()
+                pointCircle = PointCircle(0, self.height/2 + 40)
+                self.pointCircleGroup = pygame.sprite.Group(pointCircle)
 
-            self.finalPlatform = 0
-            for hitButton in parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[0]:
-                if hitButton[1] > self.finalPlatform:
-                    self.finalPlatform = hitButton[1]
-                if hitButton[0] > self.height:
-                    self.platformGroup.add(Platform(hitButton[1]//10 - 500, self.height, 50))
-                else:
-                    self.platformGroup.add(Platform(hitButton[1]//10 - 500, hitButton[0], 50))
+                self.finalPlatform = 0
+                self.hitData = parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))
+                for hitButton in range(len(self.hitData[0])):
+                    if self.hitData[0][hitButton][1] > self.finalPlatform:
+                        self.finalPlatform = self.hitData[0][hitButton][1]
+                    if self.hitData[0][hitButton][0] > self.height:
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.height, 50))
+                    elif abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1]) > 1000 and hitButton > 0:
+                        #print(abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100)
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, 
+                                                        self.hitData[0][hitButton][0], 
+                                                        abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100))
+                    else:
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.hitData[0][hitButton][0], 50))
 
-            pygame.mixer.music.load("Songs" + os.sep + parseHitObjectData(getHitObject("Songs" + os.sep + self.recentfilePath))[1])
+                pygame.mixer.music.load("Songs" + os.sep + self.hitData[1])
 
-            #removes the file where the data was parsed for logistical reasons
-            os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
+                #removes the file where the data was parsed for logistical reasons
+                os.remove("Songs" + os.sep + self.recentfilePath + " hitObjects")
 
-            #add platforms after initializing them
-            for platform in self.platformGroup:
-                if platform.x > self.width/2:
-                    self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
+                #add platforms after initializing them
+                for platform in self.platformGroup:
+                    if platform.x > self.width/2:
+                        self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
 
-            #creates final platform
-            self.platformGroup.add(Platform(self.finalPlatform, self.height - 30, 1500))
+                #creates final platform
+                self.platformGroup.add(Platform(self.finalPlatform//10 - 500, self.height - 150, 1500, True))
 
-            #creates a first platform to start from
-            workingFirstX, workingFirstY = self.finalPlatform, 0
-            for platform in self.platformGroup:
-                if platform.x < workingFirstX:
-                    workingFirstX, workingFirstY = platform.x, platform.y
-            firstPlatform = (workingFirstX, workingFirstY)
+                #creates a first platform to start from
+                workingFirstX, workingFirstY = self.finalPlatform, 0
+                for platform in self.platformGroup:
+                    if platform.x < workingFirstX:
+                        workingFirstX, workingFirstY = platform.x, platform.y
+                firstPlatform = (workingFirstX, workingFirstY)
 
-            self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 1500))
-            #sets character on starting platform
-            for character in self.characterGroup:
-                character.x, character.y = firstPlatform
+                self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 600))
+                #sets character on starting platform
+                for character in self.characterGroup:
+                    character.x, character.y = firstPlatform
 
-            #plays music associated with file
-            pygame.mixer.music.play()
-            self.state = "%s State" %(self.recentfilePath)
+                #plays music associated with file
+                pygame.mixer.music.play()
+                self.state = "%s State" %(self.recentfilePath)
 
-        #win screen back button
-        elif self.state == "Win" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 70 <= y <= self.height/2 + 110:
-            self.state = "Load File State"
+        #pause retry button
+        elif self.state == "Pause" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 - 30 <= y <= self.height/2 + 10:
+            if self.prevState == "Game State":
+                #initialize character and starting platform again
+                Character.init()
+                character = Character(self.width/2, self.height/2 - 25)
+                self.characterGroup = pygame.sprite.GroupSingle(character)
+
+                Platform.init()
+                platform = Platform(0, self.height/2 + 25, self.startPlatLength)
+                self.platformGroup = pygame.sprite.Group(platform)
+
+                PointCircle.init()
+                pointCircle = PointCircle(0, self.height/2 + 40)
+                self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+                self.state = self.prevState
+            else:
+                Character.init()
+                character = Character(self.width/2, self.height/2 - 25)
+                self.characterGroup = pygame.sprite.GroupSingle(character)
+
+                Platform.init()
+                platform = Platform(self.width/2, self.height/2 + 25, 0)
+                self.platformGroup = pygame.sprite.Group(platform)
+
+                PointCircle.init()
+                pointCircle = PointCircle(0, self.height/2 + 40)
+                self.pointCircleGroup = pygame.sprite.Group(pointCircle)
+                
+                self.finalPlatform = 0
+                for hitButton in range(len(self.hitData[0])):
+                    if self.hitData[0][hitButton][1] > self.finalPlatform:
+                        self.finalPlatform = self.hitData[0][hitButton][1]
+                    if self.hitData[0][hitButton][0] > self.height:
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.height, 50))
+                    elif abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1]) > 1000 and hitButton > 0:
+                        #print(abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100)
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, 
+                                                        self.hitData[0][hitButton][0], 
+                                                        abs(self.hitData[0][hitButton][1] - self.hitData[0][hitButton - 1][1])//100))
+                    else:
+                        self.platformGroup.add(Platform(self.hitData[0][hitButton][1]//10 + 100, self.hitData[0][hitButton][0], 50))
+
+                pygame.mixer.music.load("Songs" + os.sep + self.hitData[1])
+
+                #add platforms after initializing them
+                for platform in self.platformGroup:
+                    if platform.x > self.width/2:
+                        self.pointCircleGroup.add(PointCircle(platform.x + 15, platform.y - 30))
+
+                #creates final platform
+                self.platformGroup.add(Platform(self.finalPlatform//10 - 500, self.height - 150, 1500, True))
+
+                #creates a first platform to start from
+                workingFirstX, workingFirstY = self.finalPlatform, 0
+                for platform in self.platformGroup:
+                    if platform.x < workingFirstX:
+                        workingFirstX, workingFirstY = platform.x, platform.y
+                firstPlatform = (workingFirstX, workingFirstY)
+
+                self.platformGroup.add(Platform(firstPlatform[0], firstPlatform[1], 600))
+                #sets character on starting platform
+                for character in self.characterGroup:
+                    character.x, character.y = firstPlatform
+
+                #plays music associated with file
+                pygame.mixer.music.play()
+                self.state = "%s State" %(self.recentfilePath)
+
+        elif self.state == "Pause" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
+            self.state = "Start Menu"
+
+        #level editor menu button
+        elif self.state == "Start Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 75 <= y <= self.height/2 + 155:
+            self.state = "Level Editor Menu"
 
     def mouseReleased(self, x, y):
         pass
@@ -233,6 +407,32 @@ class PygameGame(object):
         else:
             self.backLoadHighlight = False
 
+        #highlight for level editor menu back button
+        if self.state == "Level Editor Menu" and 0 <= x <= 50 and 0 <= y <= 50:
+            self.backLevelEditorHighlight = True
+        else:
+            self.backLevelEditorHighlight = False
+
+        if self.state == "Level Editor Menu" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 140 <= y <= self.height/2 - 60:
+            self.recordButtonHighlight = True
+        else:
+            self.recordButtonHighlight = False
+
+        if self.state == "Done Analyzing" and self.width/2-100 <= x <= self.width/2 + 100 and self.height/2 - 80 <= y <= self.height/2:
+            self.analyzePlayButtonHighlight = True
+        else:
+            self.analyzePlayButtonHighlight = False
+
+        if self.state == "Done Analyzing" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 10 <= y <= self.height/2 + 90:
+            self.recordAgainButtonHighlight = True
+        else:
+            self.recordAgainButtonHighlight = False
+
+        if self.state == "Done Analyzing" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 + 100 <= y <= self.height/2 + 180:
+            self.analyzeMainMenuHighlight = True
+        else:
+            self.analyzeMainMenuHighlight = False
+
         #highlight for load file button
         if self.state == "Load File State" and self.width/2 - 100 <= x <= self.width/2 + 100 and self.height/2 - 40 <= y <= self.height/2 + 40:
             self.loadFileHighlight = True
@@ -256,26 +456,175 @@ class PygameGame(object):
         else:
             self.backWinHighlight = False
 
+        #pause retry button
+        if self.state == "Pause" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 - 30 <= y <= self.height/2 + 10:
+            self.pauseRetryHighlight = True
+        else:
+            self.pauseRetryHighlight = False
+
+        if self.state == "Pause" and self.width/2 - 50 <= x <= self.width/2 + 50 and self.height/2 + 20 <= y <= self.height/2 + 60:
+            self.pauseMainMenuHighlight = True
+        else:
+            self.pauseMainMenuHighlight = False
+
     def mouseDrag(self, x, y):
         pass
 
     def keyPressed(self, keyCode, modifier):
-        if keyCode == pygame.K_ESCAPE:
+        if keyCode == pygame.K_ESCAPE and (self.state == "%s State" %(self.recentfilePath)  or self.state == "Pause"):
             if self.pause == True:
                 self.state = self.prevState
                 self.pause = False
+                if self.prevState != "Game State":
+                    pygame.mixer.music.unpause()
             elif self.pause == False:
                 self.pause = True
                 self.prevState = self.state
                 self.state = "Pause"
+                if self.prevState != "Game State":
+                    pygame.mixer.music.pause()
 
-            
+        if self.state == "Record" and keyCode == pygame.K_r:
+            self.state = "Recording"
+            self.record = True
+
+        if self.state == "Record" and keyCode == pygame.K_ESCAPE:
+            self.state = "Level Editor Menu"
 
     def keyReleased(self, keyCode, modifier):
+        # if self.state == "Record" and keyCode == pygame.K_r:
+        #     self.record.record = False
+        #     print(self.record.record)
         pass
 
     def timerFired(self, dt):
+        if self.state == "Recording" and self.record:
+            #mic pitch detection from https://gist.github.com/notalentgeek/48aeab398b6b74e3a9134a61b6b79a36
+            p = pyaudio.PyAudio()
+            FORMAT = pyaudio.paFloat32
+            CHANNELS = 2
+            RATE = 44100
+            CHUNK = 2048
+            HOP_SIZE = CHUNK//2
+            PERIOD_SIZE_IN_FRAME = HOP_SIZE
+
+            audio = pyaudio.PyAudio()
+             
+            pitchDetect = aubio.pitch("default", CHUNK, HOP_SIZE*2, RATE)
+            pitchDetect.set_unit("midi")
+            pitchDetect.set_silence(-40)
+
+            # start Recording
+            stream = audio.open(format=FORMAT, channels=CHANNELS,
+                            rate=RATE, input=True,
+                            frames_per_buffer=PERIOD_SIZE_IN_FRAME)
+
+            data = stream.read(HOP_SIZE)
+            #beat = SimpleBeatDetection()
+            count = 0
+            with io.open("currentRecord.txt", "w", encoding = "utf-8") as f:
+                while self.record:
+                    count += 1
+                    data = stream.read(PERIOD_SIZE_IN_FRAME)
+
+                    #volume detection from https://gist.github.com/notalentgeek/48aeab398b6b74e3a9134a61b6b79a36
+                    samples = numpy.fromstring(data, dtype = aubio.float_type)
+                    volume = numpy.sum(samples**2)/len(samples)
+                    
+                    #pitch detection from same website as above
+                    pitch = pitchDetect(samples)[0]
+                    if 48 <= pitch <= 96 and volume > .03:
+                        print(math.floor(pitch), volume, "count = " + str(count))
+                        f.write(str((math.floor(pitch), count)) + "\n")
+                    for event in pygame.event.get():
+                        if event.type == pygame.KEYDOWN:
+                            if event.key == pygame.K_f:
+                                self.state = "Analyzing Recording"
+                                self.record = False
+
+                #want to write to a file, then read it like the osu data parser and
+                #build the platforms
+        if self.state == "Sound File Recording":
+            #audio file 
+            p = pyaudio.PyAudio()
+            FORMAT = pyaudio.paFloat32
+            CHANNELS = 2
+            RATE = 44100
+            CHUNK = 2048
+            HOP_SIZE = CHUNK//2
+            PERIOD_SIZE_IN_FRAME = HOP_SIZE
+
+            audio = pyaudio.PyAudio()
+
+            AudioSegment.from_mp3("Songs" + os.sep + self.recordFile + ".mp3").export("Songs" + os.sep + self.recordFile + ".wav", format="wav")
+            wf = wave.open("Songs" + os.sep + self.recordFile, "rb")
+
+            pitchDetect = aubio.pitch("default", CHUNK, HOP_SIZE*2, RATE)
+            pitchDetect.set_unit("midi")
+            pitchDetect.set_silence(-40)
+
+            # start Recording
+            stream = audio.open(format=FORMAT, channels=CHANNELS,
+                            rate=RATE, input=True,
+                            frames_per_buffer=PERIOD_SIZE_IN_FRAME)
+
+            data = wf.readframes(CHUNK)
+            count = 0
+            with io.open("currentRecord.txt", "w", encoding = "utf-8") as f:
+                while len(data) > 0:
+                    count += 1
+                    data = stream.read(PERIOD_SIZE_IN_FRAME)
+
+                    #volume detection from https://gist.github.com/notalentgeek/48aeab398b6b74e3a9134a61b6b79a36
+                    samples = numpy.fromstring(data, dtype = aubio.float_type)
+                    
+                    #pitch detection from same website as above
+                    pitch = pitchDetect(samples)[0]
+                    if 48 <= pitch <= 96:
+                        print(math.floor(pitch), volume, "count = " + str(count))
+                        f.write(str((math.floor(pitch), count)) + "\n")
+        
+                self.state = "Analyzing Recording"
+                self.record = False
+        if self.state == "Analyzing Recording":
+            with io.open("currentRecord.txt", "r", encoding = "utf-8") as f:
+                workingList = []
+                dt1 = 0
+                dt2 = 0
+                #x, y, length = dt1, pitch, how long note was held
+                for platTuple in f:
+                    platTuple = eval(platTuple.strip())
+                    workingList.append(platTuple)
+                for elem in range(len(workingList)):
+                    if elem == 0:
+                        self.startPlatLength = workingList[0][1]
+                    if elem != 0 and workingList[elem - 1][0] != workingList[elem][0]:
+                        dt1 = workingList[elem][1]
+                    elif elem != len(workingList) - 1 and workingList[elem][0] != workingList[elem + 1][0]:
+                        dt2 = workingList[elem][1]
+                        if (dt2 - dt1)*2 < 25:
+                            self.analyzeList.append((dt2 + self.startPlatLength + self.width/2, ((workingList[elem][0] - 48)/48)*self.height + 25, 25))
+                        else:
+                            self.analyzeList.append((dt2 + self.startPlatLength + self.width/2, ((workingList[elem][0] - 48)/48)*self.height + 25, (dt2 - dt1)*2))
+                
+                #spread out platforms
+                finalList = []
+                for platform in range(len(self.analyzeList)):
+                    if platform != 0 and self.analyzeList[platform][1] - self.analyzeList[platform - 1][1] < 25:
+                        pass
+                    elif platform != 0 and self.analyzeList[platform][0] - self.analyzeList[platform - 1][0] < self.analyzeList[platform - 1][2]:
+                        dx = self.analyzeList[platform - 1][2] - (self.analyzeList[platform][0] - self.analyzeList[platform - 1][0])
+                        finalList.append((self.analyzeList[platform][0] + dx, self.analyzeList[platform][1], self.analyzeList[platform][2]))
+                    else:
+                        finalList.append((self.analyzeList[platform][0], self.analyzeList[platform][1], self.analyzeList[platform][2]))
+                self.analyzeList = finalList
+                if self.analyzeList == []:
+                    self.state = "Record"
+                else:
+                    self.state = "Done Analyzing"
+
         if self.state != "%s State" %(self.recentfilePath): return
+
         self.timesFired += 1
         self.platformGroup.update(self.isKeyPressed, self.width, self.height)
         self.characterGroup.update(self.isKeyPressed, self.width, self.height)
@@ -295,7 +644,10 @@ class PygameGame(object):
                     character.y = platform.y - 30
                     character.velocity = 0 
                     character.angle = 90
-                elif character.x + 25 < platform.x:
+                if platform.final:
+                    self.state = "Win"
+                    pygame.mixer.music.stop()
+                if character.x + 25 < platform.x:
                     character.x = platform.x - 45
 
         for character in pygame.sprite.groupcollide(
@@ -311,12 +663,9 @@ class PygameGame(object):
             if not character.isJump and self.state == "%s State" %(self.recentfilePath):
                 character.onPlatform = False
 
-            if character.y >= self.height:
+            if character.y >= self.height + 100:
+                self.prevState = self.state
                 self.state = "Lost"
-                pygame.mixer.music.stop()
-
-            if character.x == self.finalPlatform + 1300:
-                self.state = "Win"
                 pygame.mixer.music.stop()
 
             elif character.isJump:
@@ -324,12 +673,12 @@ class PygameGame(object):
 
 
         if self.state == "Game State":
-            if self.timesFired % 50 == 0: #adds platforms every so often
+            if self.timesFired % 100 == 0: #adds platforms every so often
                 self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 + 25, 70))
-                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3 + 35, self.height/2 - 55))
-            if self.timesFired % 50 == 25:
+                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3, self.height/2 - 5))
+            if self.timesFired % 100 == 50:
                 self.platformGroup.add(Platform(self.width + self.startPlatLength/3, self.height/2 - 25, 75))
-                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3 + 35, self.height/2))
+                self.pointCircleGroup.add(PointCircle(self.width + self.startPlatLength/3, self.height/2 - 55))
 
             for char in self.characterGroup:
                 for platform in self.platformGroup:
@@ -337,15 +686,19 @@ class PygameGame(object):
 
     def redrawAll(self, screen):
         if self.state == "Start Menu":
-            screen.fill((0, 255, 0))
+            screen.fill((0, 0, 200))
             screen.blit(self.startFont.render('PyRhythm Platformer', True, 
-                                              (255,0,0)), (0, 0))
+                                              (255,255,255)), (30, 50))
             
             #play button
-            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100, 
-                             self.height/2 - 50, 200, 80))
+            # pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100, 
+            #                  self.height/2 - 50, 200, 80))
+            playButton = pygame.Surface((200, 80))
+            playButton.set_alpha(255)
+            playButton.fill((100, 155, 155))
+            screen.blit(playButton, (self.width/2 - 100, self.height/2 - 50))
             screen.blit(self.playFont.render("Play Game", True,
-                                            (0, 0, 0)), (self.width/2 - 75, self.height/2 - 35))
+                                            (0, 0, 0)), (self.width/2 - 83, self.height/2 - 25))
 
             #play button highlight
             if self.playHighlight:
@@ -355,18 +708,102 @@ class PygameGame(object):
             #edit button
             pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
                              self.height/2 + 75, 200, 80))
+            screen.blit(self.playFont.render("Level Editor", True,
+                                            (0, 0, 0)), (self.width/2 - 90, self.height/2 + 100))
 
             #edit button highlight
             if self.editHighlight:
                 pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
                                  self.height/2 + 75, 200, 80), self.highlight)
 
-        elif self.state == "Load File State":
-            screen.fill((0, 255, 0))
+        elif self.state == "Level Editor Menu":
+            screen.fill((0, 0, 200))
             #back button
             pygame.draw.rect(screen, (155, 0, 0), (0, 0, 50, 50))
             screen.blit(self.backFont.render("<", True, (0, 0, 0)),
-                        (10, 0))
+                        (15, 8))
+
+            #back button highlight
+            if self.backLevelEditorHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (0, 0, 50, 50), self.highlight)
+
+
+            #level edit button
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 - 140, 200, 80))
+            screen.blit(self.recordFont.render("Record a Level", True, (0, 0, 0)),
+                        (self.width/2 - 85, self.height/2 - 110))
+
+            #level edit button highlight
+            if self.recordButtonHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100, 
+                                 self.height/2 - 140, 200, 80), self.highlight)
+
+        elif self.state == "Record":
+            screen.fill((0, 0, 200))
+            screen.blit(self.startFont.render("Press R to record, and", True, (255, 255, 255)),
+                        (30, 0))
+            screen.blit(self.startFont.render("F to stop recording!", True, (255, 255, 255)),
+                        (50, 40))
+            screen.blit(self.startFont.render("Press ESC to return to", True, (255, 255, 255)),
+                        (30, 150))
+            screen.blit(self.startFont.render("the previous screen.", True, (255, 255, 255)),
+                        (50, 190))
+
+        elif self.state == "Recording":
+            screen.fill((0, 0, 200))
+            screen.blit(self.startFont.render("Recording...", True, (255, 255, 255)),
+                        (30, self.height/2 - 40))
+            
+        elif self.state == "Analyzing Recording":
+            screen.fill((0, 0, 200))
+            screen.blit(self.startFont.render("Analyzing Recording...", True, (255, 255, 255)),
+                        (10, self.height/2 - 40))
+
+        elif self.state == "Done Analyzing":
+            screen.fill((0, 0, 200))
+            screen.blit(self.startFont.render("Done Analyzing!", True, (255, 255, 255)),
+                        (90, 50))
+
+            #play analyzed recording button:
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 - 80, 200, 80))
+            screen.blit(self.playFont.render("Play Level", True, (0, 0, 0)),
+                        (self.width/2 - 80, self.height/2 - 55))
+
+            #play analyzed recording button highlight:
+            if self.analyzePlayButtonHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
+                                 self.height/2 - 80, 200, 80), self.highlight)
+
+            #record again button:
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 + 10, 200, 80))
+            screen.blit(self.recordAgainFont.render("Record Again", True, (0, 0, 0)),
+                        (self.width/2 - 95, self.height/2 + 35))
+
+            #record again button highlight
+            if self.recordAgainButtonHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100, 
+                                 self.height/2 + 10, 200, 80), self.highlight)
+
+            #main menu button
+            pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
+                             self.height/2 + 100, 200, 80))
+            screen.blit(self.playFont.render("Main Menu", True, (0, 0, 0)),
+                        (self.width/2 - 85, self.height/2 + 125))
+
+            #main menu button highlightsht
+            if self.analyzeMainMenuHighlight:
+                pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
+                                 self.height/2 + 100, 200, 80), self.highlight)
+
+        elif self.state == "Load File State":
+            screen.fill((0, 0, 200))
+            #back button
+            pygame.draw.rect(screen, (155, 0, 0), (0, 0, 50, 50))
+            screen.blit(self.backFont.render("<", True, (0, 0, 0)),
+                        (15, 8))
 
             #back button highlight
             if self.backLoadHighlight:
@@ -375,8 +812,8 @@ class PygameGame(object):
             #play default/tutorial level
             pygame.draw.rect(screen,(100, 155, 155), (self.width/2 - 100,
                              self.height/2 - 140, 200, 80))
-            screen.blit(self.playFont.render("Tutorial Level", True, (0, 0, 0)),
-                        (self.width/2 - 90, self.height/2 - 120))
+            screen.blit(self.tutFont.render("Tutorial Level", True, (0, 0, 0)),
+                        (self.width/2 - 92, self.height/2 - 110))
 
             #default/tutorial level highlight
             if self.tutorialHighlight:
@@ -387,14 +824,14 @@ class PygameGame(object):
             pygame.draw.rect(screen, (100, 155, 155), (self.width/2 - 100,
                              self.height/2 - 40, 200, 80))
             screen.blit(self.playFont.render("Load File", True, (0, 0, 0)),
-                        (self.width/2 - 62, self.height/2 - 20))
+                        (self.width/2 - 68, self.height/2 - 15))
 
             #load file highlight
             if self.loadFileHighlight:
                 pygame.draw.rect(screen, (255, 255, 0), (self.width/2 - 100,
                                  self.height/2 - 40, 200, 80), self.highlight)
 
-        elif self.state == "Game State" or self.state == "%s State" %(self.recentfilePath):
+        elif self.state == "Game State" or self.state == "%s State" %(self.recentfilePath) or self.state == "Play Analyzed Recording State":
             self.characterGroup.draw(screen)
             self.platformGroup.draw(screen)
             self.pointCircleGroup.draw(screen)
@@ -413,13 +850,13 @@ class PygameGame(object):
         elif self.state == "Lost":
             screen.fill((255, 0, 0))
             screen.blit(self.startFont.render("Failed!", True, (0, 0, 0)), 
-                        (self.width/2 - 90, self.height/2 - 100))
+                        (self.width/2 - 75, self.height/2 - 100))
 
             #retry button
             pygame.draw.rect(screen, (100, 155, 155), 
                             (self.width/2 - 50, self.height/2 + 20, 100, 40))
             screen.blit(self.retryFont.render("Retry", True, (0, 0, 0)),
-                        (self.width/2 - 32, self.height/2 + 18))
+                        (self.width/2 - 25, self.height/2 + 30))
 
             #retry highlight
             if self.retryHighlight:
@@ -430,7 +867,7 @@ class PygameGame(object):
             pygame.draw.rect(screen, (100, 155, 155),
                             (self.width/2 - 50, self.height/2 + 70, 100, 40))
             screen.blit(self.retryFont.render("Back", True, (0, 0, 0)),
-                        (self.width/2 - 32, self.height/2 + 68))
+                        (self.width/2 - 23, self.height/2 + 80))
 
             #main menu highlight
             if self.backFailHighlight:
@@ -438,15 +875,15 @@ class PygameGame(object):
                             (self.width/2 - 50, self.height/2 + 70, 100, 40), self.highlight)
 
         elif self.state == "Win":
-            screen.fill((0, 255, 0))
-            screen.blit(self.startFont.render("Success!", True, (0, 0, 0)),
-                        (self.width/2 - 90, self.height/2 - 100))
+            screen.fill((0, 0, 200))
+            screen.blit(self.startFont.render("Success!", True, (255, 255, 255)),
+                        (self.width/2 - 110, self.height/2 - 100))
 
             #main menu button
             pygame.draw.rect(screen, (100, 155, 155),
                             (self.width/2 - 50, self.height/2 + 70, 100, 40))
             screen.blit(self.retryFont.render("Back", True, (0, 0, 0)),
-                        (self.width/2 - 32, self.height/2 + 68))
+                        (self.width/2 - 25, self.height/2 + 80))
 
             #main menu highlight
             if self.backWinHighlight:
@@ -461,6 +898,22 @@ class PygameGame(object):
             pauseScreen.set_alpha(100)
             pauseScreen.fill((155, 155, 155))
             screen.blit(pauseScreen, (0, 0))
+
+            #pause screen buttons
+            pygame.draw.rect(screen, (100, 155, 155),
+                             (self.width/2 - 50, self.height/2 - 30, 100, 40))
+            screen.blit(self.retryFont.render("Retry", True, (0, 0, 0)),
+                        (self.width/2 - 25, self.height/2 - 20))
+            if self.pauseRetryHighlight:
+                pygame.draw.rect(screen, (255, 255, 0),
+                                 (self.width/2 - 50, self.height/2 - 30, 100, 40), self.highlight)
+
+            #main menu button
+            pygame.draw.rect(screen, (100, 155, 155),
+                             (self.width/2 - 50, self.height/2 + 20, 100, 40))
+            if self.pauseMainMenuHighlight:
+                pygame.draw.rect(screen, (255, 255, 0),
+                                 (self.width/2 - 50, self.height/2 + 20, 100, 40), self.highlight)
 
     def isKeyPressed(self, key):
         ''' return whether a specific key is being held '''
